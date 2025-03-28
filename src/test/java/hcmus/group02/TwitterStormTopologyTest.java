@@ -7,7 +7,7 @@ import junit.framework.TestSuite;
 /**
  * Unit test for simple App.
  */
-public class StormLocalTopologyTest
+public class TwitterStormTopologyTest
     extends TestCase
 {
     /**
@@ -15,7 +15,7 @@ public class StormLocalTopologyTest
      *
      * @param testName name of the test case
      */
-    public StormLocalTopologyTest(String testName )
+    public TwitterStormTopologyTest(String testName )
     {
         super( testName );
     }
@@ -25,7 +25,7 @@ public class StormLocalTopologyTest
      */
     public static Test suite()
     {
-        return new TestSuite( StormLocalTopologyTest.class );
+        return new TestSuite( TwitterStormTopologyTest.class );
     }
 
     /**

@@ -7,37 +7,42 @@ import org.apache.storm.topology.OutputFieldsDeclarer;
 import org.apache.storm.topology.base.BaseRichSpout;
 import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Values;
+import org.apache.storm.utils.Utils;
 
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TwitterFileListenerSpout extends BaseRichSpout {
-    private SpoutOutputCollector outputCollector;
+public class TwitterFileListeningSpout extends BaseRichSpout {
+    private final String filename;
+    private SpoutOutputCollector collector;
     private List<String> tweets;
 
-    // Define the field names for all tuples emitted by the spout
+    public TwitterFileListeningSpout(String filename) {
+        this.filename = filename;
+    }
+
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         declarer.declare(new Fields("record"));
     }
 
-    // Gets called when Storm prepares the spout to be run
     @Override
-    public void open(Map configMap, TopologyContext context, SpoutOutputCollector outputCollector) {
-        this.outputCollector = outputCollector;
+    public void open(Map configMap, TopologyContext context, SpoutOutputCollector collector) {
+        this.collector = collector;
         tweets = IOUtils.readLines(
-                Objects.requireNonNull(ClassLoader.getSystemResourceAsStream("./data/hashtag_joebiden.csv")),
-                Charset.defaultCharset().name());
+                Objects.requireNonNull(ClassLoader.getSystemResourceAsStream(filename)),
+                Charset.defaultCharset().name()
+            );
         tweets.remove(0);
     }
 
-    // Called by Storm when it's ready to read the next tuple for the spout
     @Override
     public void nextTuple() {
         for (String record : tweets) {
-            outputCollector.emit(new Values(record));
+            Utils.sleep(10);
+            collector.emit(new Values(record));
         }
     }
 }
