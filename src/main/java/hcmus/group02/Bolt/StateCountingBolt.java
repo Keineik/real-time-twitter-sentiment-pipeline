@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class StateCountingBolt extends BaseRichBolt {
+    private OutputCollector collector;
     private Map<String,Integer> counts;
 
     @Override
@@ -18,13 +19,15 @@ public class StateCountingBolt extends BaseRichBolt {
     }
 
     public void prepare(Map<String, Object> config, TopologyContext context, OutputCollector collector) {
+        this.collector = collector;
         this.counts = new HashMap<String, Integer>();
     }
 
-    public void execute(Tuple input) {
-        String state = input.getStringByField("state");
+    public void execute(Tuple tuple) {
+        String state = tuple.getStringByField("state");
         counts.put(state, counts.getOrDefault(state, 0) + 1);
         printCounts();
+        collector.ack(tuple);
     }
 
     private void printCounts() {

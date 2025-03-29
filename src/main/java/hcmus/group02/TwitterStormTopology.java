@@ -1,5 +1,6 @@
 package hcmus.group02;
 
+import hcmus.group02.Bolt.SentimentBolt;
 import hcmus.group02.Bolt.StateCountingBolt;
 import hcmus.group02.Bolt.JsonParsingBolt;
 import hcmus.group02.Spout.TwitterFileListeningSpout;
@@ -16,21 +17,27 @@ public class TwitterStormTopology
     private static final int ONE_MINUTES = 60000;
 
     private static void runLocalTopology(TopologyBuilder builder) throws Exception {
+        // Take input
         builder.setSpout("TwitterFileListeningSpout", new TwitterFileListeningSpout("data/hashtag_joebiden.json"));
 
-        builder.setBolt("TweetExtractingBolt", new JsonParsingBolt("state"))
+        // Parse JSON
+        builder.setBolt("JsonParsingBolt", new JsonParsingBolt("tweet_id,state,tweet"))
                 .shuffleGrouping("TwitterFileListeningSpout");
 
+        // Count tweet group by state
         builder.setBolt("StateCountingBolt", new StateCountingBolt())
-                .fieldsGrouping("TweetExtractingBolt", new Fields("state"));
+                .fieldsGrouping("JsonParsingBolt", new Fields("state"));
+
+        // Get sentiment of tweets
+        builder.setBolt("SentimentBolt", new SentimentBolt("AFINN-en-165.txt"))
+                .shuffleGrouping("JsonParsingBolt");
 
         Config config = new Config();
         config.setDebug(true);
 
-
         StormTopology topology = builder.createTopology();
         try (LocalCluster cluster = new LocalCluster()) { // Try-with-resources
-            cluster.submitTopology("github-commit-count-topology", config, topology);
+            cluster.submitTopology("LocalStormTopology", config, topology);
             Utils.sleep(ONE_MINUTES/10);
             cluster.killTopology("LocalStormTopology");
             cluster.shutdown();

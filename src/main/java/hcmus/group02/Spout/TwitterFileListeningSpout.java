@@ -15,12 +15,12 @@ import java.util.Map;
 import java.util.Objects;
 
 public class TwitterFileListeningSpout extends BaseRichSpout {
-    private final String filename;
+    private final String filepath;
     private SpoutOutputCollector collector;
     private List<String> tweets;
 
-    public TwitterFileListeningSpout(String filename) {
-        this.filename = filename;
+    public TwitterFileListeningSpout(String filepath) {
+        this.filepath = filepath;
     }
 
     @Override
@@ -29,12 +29,11 @@ public class TwitterFileListeningSpout extends BaseRichSpout {
     }
 
     @Override
-    public void open(Map configMap, TopologyContext context, SpoutOutputCollector collector) {
+    public void open(Map config, TopologyContext context, SpoutOutputCollector collector) {
         this.collector = collector;
         tweets = IOUtils.readLines(
-                Objects.requireNonNull(ClassLoader.getSystemResourceAsStream(filename)),
-                Charset.defaultCharset().name()
-            );
+                Objects.requireNonNull(ClassLoader.getSystemResourceAsStream(filepath)),
+                Charset.defaultCharset().name());
         tweets.remove(0);
     }
 

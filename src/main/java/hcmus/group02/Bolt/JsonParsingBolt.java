@@ -18,7 +18,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class JsonParsingBolt extends BaseRichBolt {
-    private static final Logger logger = Logger.getLogger(JsonParsingBolt.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(JsonParsingBolt.class.getName());
     private OutputCollector collector;
     private final List<String> fields;
 
@@ -42,19 +42,19 @@ public class JsonParsingBolt extends BaseRichBolt {
 
             // Convert the record to an instance of Map
             ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> map = mapper.readValue(record, new TypeReference<Map<String, Object>>() {});
+            Map<String, String> map = mapper.readValue(record, new TypeReference<Map<String, String>>() {});
 
             // Build the tuple by getting each field from the map
             List<String> outputValues = new ArrayList<>();
             for (String field : fields) {
-                outputValues.add(map.get(field) != null ? map.get(field).toString() : null);
+                outputValues.add(map.get(field) != null ? map.get(field) : null);
             }
 
             // Emit the parsed result to stream
             collector.emit(new Values(outputValues.toArray()));
             collector.ack(tuple);
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error in JsonParsingBolt", e);
+            LOGGER.log(Level.SEVERE, "Error in JsonParsingBolt", e);
             this.collector.fail(tuple);
         }
     }
