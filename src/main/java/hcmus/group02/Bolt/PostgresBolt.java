@@ -4,18 +4,30 @@ import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
 import org.apache.storm.topology.OutputFieldsDeclarer;
 import org.apache.storm.topology.base.BaseRichBolt;
+import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class PostgresBolt extends BaseRichBolt {
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresBolt.class);
     private OutputCollector collector;
     Connection connection;
+    private final List<String> fields;
+    private final String type;
+
+    public PostgresBolt(String fields, String type) {
+        this.fields = Arrays.asList(fields.split(","));
+        this.type = type;
+    }
 
     public void prepare(Map<String, Object> map, TopologyContext context, OutputCollector collector) {
         this.collector = collector;
@@ -52,13 +64,18 @@ public class PostgresBolt extends BaseRichBolt {
                 statement.executeUpdate(sql);
                 System.out.println("Table created/verified successfully");
 
-                // Delete old data if exists since this is in development
-                sql = "DELETE FROM Tweet WHERE 1=1";
-                statement.executeUpdate(sql);
+                if (Objects.equals(type, "new table")) {
+                    // Delete old data if exists since this is in development
+                    sql = "DELETE FROM Tweet WHERE 1=1";
+                    statement.executeUpdate(sql);
+                }
                 System.out.println("Table cleared successfully");
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Table creation failed" + e.getMessage());
+        } catch (SQLException e) {
+            if (e.getSQLState().equals("23505") && e.getMessage().contains("tweet_id_seq")) {
+                LOGGER.warn("Duplicate sequence detected, ignoring: {}", e.getMessage());
+            }
+            else throw new RuntimeException("Table creation failed" + e.getMessage());
         }
     }
 
@@ -92,6 +109,7 @@ public class PostgresBolt extends BaseRichBolt {
                 statement.setTimestamp(idx, Timestamp.from(OffsetDateTime.parse(tuple.getStringByField("collected_at")).toInstant()));
 
                 statement.executeUpdate();
+                collector.emit(new Values(tuple.getValues().toArray(new Object[0])));
                 collector.ack(tuple);
             }
             catch (Exception e) {
@@ -107,8 +125,11 @@ public class PostgresBolt extends BaseRichBolt {
                 statement.setInt(1, tuple.getIntegerByField("sentiment_score"));
                 statement.setString(2, tuple.getStringByField("tweet_id"));
 
-                statement.executeUpdate();
-                collector.ack(tuple);
+                int affectedRows = statement.executeUpdate();
+                // If update failed
+                if (affectedRows == 0) {
+                    throw new SQLException("Failed to persist sentiment: " + tuple.getStringByField("tweet_id"));
+                }
             }
             catch (Exception e) {
                 LOGGER.error("Error persisting from SentimentBolt: {}", e.getMessage());
@@ -118,6 +139,6 @@ public class PostgresBolt extends BaseRichBolt {
     }
 
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-
+        declarer.declare(new Fields(fields));
     }
 }

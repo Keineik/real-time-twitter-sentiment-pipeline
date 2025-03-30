@@ -58,7 +58,7 @@ public class SentimentBolt extends BaseRichBolt {
             collector.ack(tuple);
         }
         catch (Exception e) {
-            LOGGER.error(e.getMessage());
+            LOGGER.error("Failed to process sentiment score: {}", e.getMessage());
             collector.fail(tuple);
         }
     }

@@ -18,14 +18,15 @@ public class TwitterStormTopology
     private static final int ONE_MINUTES = 60000;
 
     private static void runLocalTopology(TopologyBuilder builder) throws Exception {
+        String fields = "created_at,tweet_id,tweet,likes,retweet_count,source," +
+                "user_id,user_name,user_screen_name,user_join_date,user_followers_count," +
+                "city,country,state,state_code,collected_at";
+
         // Take input
         builder.setSpout("TwitterFileListeningSpout", new TwitterFileListeningSpout("data/hashtag_joebiden.json"));
 
         // Parse JSON
-        builder.setBolt("JsonParsingBolt", new JsonParsingBolt(
-                "created_at,tweet_id,tweet,likes,retweet_count,source," +
-                        "user_id,user_name,user_screen_name,user_join_date,user_followers_count," +
-                        "city,country,state,state_code,collected_at"))
+        builder.setBolt("JsonParsingBolt", new JsonParsingBolt(fields))
                 .shuffleGrouping("TwitterFileListeningSpout");
 
         // Count tweet group by state
@@ -33,15 +34,15 @@ public class TwitterStormTopology
                 .fieldsGrouping("JsonParsingBolt", new Fields("state"));
 
         // Persist data to database
-        builder.setBolt("PostgresBolt", new PostgresBolt())
+        builder.setBolt("PostgresBolt", new PostgresBolt(fields, "new table"))
                 .shuffleGrouping("JsonParsingBolt");
 
         // Get sentiment of tweets
         builder.setBolt("SentimentBolt", new SentimentBolt("AFINN-en-165.txt"))
-                .shuffleGrouping("JsonParsingBolt");
+                .shuffleGrouping("PostgresBolt");
 
         // Update sentiment to database
-        builder.setBolt("SentimentUpdatingBolt", new PostgresBolt())
+        builder.setBolt("SentimentUpdatingBolt", new PostgresBolt("", ""))
                 .shuffleGrouping("SentimentBolt");
 
         Config config = new Config();
@@ -50,7 +51,7 @@ public class TwitterStormTopology
         StormTopology topology = builder.createTopology();
         try (LocalCluster cluster = new LocalCluster()) { // Try-with-resources
             cluster.submitTopology("LocalStormTopology", config, topology);
-            Utils.sleep(ONE_MINUTES/3);
+            Utils.sleep(ONE_MINUTES/6);
             cluster.killTopology("LocalStormTopology");
             cluster.shutdown();
         }

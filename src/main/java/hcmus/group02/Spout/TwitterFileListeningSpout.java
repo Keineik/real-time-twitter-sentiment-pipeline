@@ -40,7 +40,7 @@ public class TwitterFileListeningSpout extends BaseRichSpout {
     @Override
     public void nextTuple() {
         for (String record : tweets) {
-            Utils.sleep(10);
+            Utils.sleep(50);
             collector.emit(new Values(record));
         }
     }
