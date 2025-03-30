@@ -1,5 +1,6 @@
 package hcmus.group02;
 
+import hcmus.group02.Bolt.PostgresBolt;
 import hcmus.group02.Bolt.SentimentBolt;
 import hcmus.group02.Bolt.StateCountingBolt;
 import hcmus.group02.Bolt.JsonParsingBolt;
@@ -21,16 +22,27 @@ public class TwitterStormTopology
         builder.setSpout("TwitterFileListeningSpout", new TwitterFileListeningSpout("data/hashtag_joebiden.json"));
 
         // Parse JSON
-        builder.setBolt("JsonParsingBolt", new JsonParsingBolt("tweet_id,state,tweet"))
+        builder.setBolt("JsonParsingBolt", new JsonParsingBolt(
+                "created_at,tweet_id,tweet,likes,retweet_count,source," +
+                        "user_id,user_name,user_screen_name,user_join_date,user_followers_count," +
+                        "city,country,state,state_code,collected_at"))
                 .shuffleGrouping("TwitterFileListeningSpout");
 
         // Count tweet group by state
         builder.setBolt("StateCountingBolt", new StateCountingBolt())
                 .fieldsGrouping("JsonParsingBolt", new Fields("state"));
 
+        // Persist data to database
+        builder.setBolt("PostgresBolt", new PostgresBolt())
+                .shuffleGrouping("JsonParsingBolt");
+
         // Get sentiment of tweets
         builder.setBolt("SentimentBolt", new SentimentBolt("AFINN-en-165.txt"))
                 .shuffleGrouping("JsonParsingBolt");
+
+        // Update sentiment to database
+        builder.setBolt("SentimentUpdatingBolt", new PostgresBolt())
+                .shuffleGrouping("SentimentBolt");
 
         Config config = new Config();
         config.setDebug(true);
@@ -38,7 +50,7 @@ public class TwitterStormTopology
         StormTopology topology = builder.createTopology();
         try (LocalCluster cluster = new LocalCluster()) { // Try-with-resources
             cluster.submitTopology("LocalStormTopology", config, topology);
-            Utils.sleep(ONE_MINUTES/10);
+            Utils.sleep(ONE_MINUTES/3);
             cluster.killTopology("LocalStormTopology");
             cluster.shutdown();
         }

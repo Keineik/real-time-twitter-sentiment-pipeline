@@ -1,0 +1,123 @@
+package hcmus.group02.Bolt;
+
+import org.apache.storm.task.OutputCollector;
+import org.apache.storm.task.TopologyContext;
+import org.apache.storm.topology.OutputFieldsDeclarer;
+import org.apache.storm.topology.base.BaseRichBolt;
+import org.apache.storm.tuple.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.sql.*;
+import java.time.OffsetDateTime;
+import java.util.Map;
+
+public class PostgresBolt extends BaseRichBolt {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostgresBolt.class);
+    private OutputCollector collector;
+    Connection connection;
+
+    public void prepare(Map<String, Object> map, TopologyContext context, OutputCollector collector) {
+        this.collector = collector;
+        try {
+            // Establish connection
+            String dbUrl = "jdbc:postgresql://localhost:5432/postgres";
+            String user = "admin";
+            String password = "admin";
+            this.connection = DriverManager.getConnection(dbUrl, user, password);
+
+            // Create table if not exists
+            try (Statement statement = connection.createStatement()) {
+                String sql = """
+                        CREATE TABLE IF NOT EXISTS Tweet (
+                             id SERIAL PRIMARY KEY,
+                             created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                             tweet_id VARCHAR(30) UNIQUE NOT NULL,
+                             tweet TEXT NOT NULL,
+                             likes INT DEFAULT 0,
+                             retweet_count INT DEFAULT 0,
+                             source VARCHAR(255),
+                             user_id VARCHAR(30) NOT NULL,
+                             user_name VARCHAR(255),
+                             user_screen_name VARCHAR(255),
+                             user_join_date TIMESTAMP WITH TIME ZONE,
+                             user_followers_count INT DEFAULT 0,
+                             city VARCHAR(255),
+                             country VARCHAR(255),
+                             state VARCHAR(255),
+                             state_code VARCHAR(10),
+                             collected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                             sentiment_score INT DEFAULT 0
+                         );""";
+                statement.executeUpdate(sql);
+                System.out.println("Table created/verified successfully");
+
+                // Delete old data if exists since this is in development
+                sql = "DELETE FROM Tweet WHERE 1=1";
+                statement.executeUpdate(sql);
+                System.out.println("Table cleared successfully");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Table creation failed" + e.getMessage());
+        }
+    }
+
+    public void execute(Tuple tuple) {
+        String source = tuple.getSourceComponent();
+        if (source.equals("JsonParsingBolt")) {
+            String sql = """
+                    INSERT INTO Tweet (created_at, tweet_id, tweet, likes, retweet_count, source,
+                                       user_id, user_name, user_screen_name, user_join_date, user_followers_count,
+                                       city, country, state, state_code, collected_at)
+                    VALUES (?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?);""";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                int idx = 1;
+                statement.setTimestamp(idx++, Timestamp.from(OffsetDateTime.parse(tuple.getStringByField("created_at")).toInstant()));
+                statement.setString(idx++, tuple.getStringByField("tweet_id"));
+                statement.setString(idx++, tuple.getStringByField("tweet"));
+                statement.setInt(idx++, (int) Double.parseDouble(tuple.getStringByField("likes")));
+                statement.setInt(idx++, (int) Double.parseDouble(tuple.getStringByField("retweet_count")));
+                statement.setString(idx++, tuple.getStringByField("source"));
+                statement.setString(idx++, tuple.getStringByField("user_id"));
+                statement.setString(idx++, tuple.getStringByField("user_name"));
+                statement.setString(idx++, tuple.getStringByField("user_screen_name"));
+                statement.setTimestamp(idx++, Timestamp.from(OffsetDateTime.parse(tuple.getStringByField("user_join_date")).toInstant()));
+                statement.setInt(idx++, (int) Double.parseDouble(tuple.getStringByField("user_followers_count")));
+                statement.setString(idx++, tuple.getStringByField("city"));
+                statement.setString(idx++, tuple.getStringByField("country"));
+                statement.setString(idx++, tuple.getStringByField("state"));
+                statement.setString(idx++, tuple.getStringByField("state_code"));
+                statement.setTimestamp(idx, Timestamp.from(OffsetDateTime.parse(tuple.getStringByField("collected_at")).toInstant()));
+
+                statement.executeUpdate();
+                collector.ack(tuple);
+            }
+            catch (Exception e) {
+                LOGGER.error("Error persisting from JsonParsingBolt: {}", e.getMessage());
+                collector.fail(tuple);
+            }
+        }
+        else if (source.equals("SentimentBolt")) {
+            String sql = """
+                    UPDATE Tweet SET sentiment_score = ? WHERE tweet_id = ?""";
+
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, tuple.getIntegerByField("sentiment_score"));
+                statement.setString(2, tuple.getStringByField("tweet_id"));
+
+                statement.executeUpdate();
+                collector.ack(tuple);
+            }
+            catch (Exception e) {
+                LOGGER.error("Error persisting from SentimentBolt: {}", e.getMessage());
+                collector.fail(tuple);
+            }
+        }
+    }
+
+    public void declareOutputFields(OutputFieldsDeclarer declarer) {
+
+    }
+}

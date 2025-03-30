@@ -64,7 +64,7 @@ public class SentimentBolt extends BaseRichBolt {
     }
 
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("tweet_id", "sentiment"));
+        declarer.declare(new Fields("tweet_id", "sentiment_score"));
     }
 
     private int getSentimentScore(String tweet) {

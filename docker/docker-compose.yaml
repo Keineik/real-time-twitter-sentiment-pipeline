@@ -28,13 +28,29 @@ services:
       - zookeeper
     restart: always
 
+  storm-ui:
+    image: storm
+    container_name: storm-ui
+    command: storm ui
+    depends_on:
+      - nimbus
+    restart: always
+    ports:
+      - "8080:8080"
+
   postgresql:
     image: "bitnami/postgresql:latest"
+    container_name: "postgresql"
     ports:
       - "5432:5432"
+    environment:
+      - POSTGRESQL_USERNAME=admin
+      - POSTGRESQL_PASSWORD=admin
+      - POSTGRESQL_DATABASE=postgres
 
   kafka:
     image: "docker.io/bitnami/kafka:latest"
+    container_name: "kafka"
     ports:
       - "9092:9092"
     environment:
