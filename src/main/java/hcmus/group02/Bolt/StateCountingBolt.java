@@ -4,7 +4,9 @@ import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
 import org.apache.storm.topology.OutputFieldsDeclarer;
 import org.apache.storm.topology.base.BaseRichBolt;
+import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,7 +17,7 @@ public class StateCountingBolt extends BaseRichBolt {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        // This bolt does not emit anything and therefore does not declare any output fields.
+        declarer.declare(new Fields("state", "tweet_cnt"));
     }
 
     public void prepare(Map<String, Object> config, TopologyContext context, OutputCollector collector) {
@@ -26,6 +28,7 @@ public class StateCountingBolt extends BaseRichBolt {
     public void execute(Tuple tuple) {
         String state = tuple.getStringByField("state");
         counts.put(state, counts.getOrDefault(state, 0) + 1);
+        collector.emit(new Values(state, counts.get(state)));
         printCounts();
         collector.ack(tuple);
     }

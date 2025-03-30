@@ -45,6 +45,10 @@ public class TwitterStormTopology
         builder.setBolt("SentimentUpdatingBolt", new PostgresBolt("", ""))
                 .shuffleGrouping("SentimentBolt");
 
+        // Update tweet count by state to database
+        builder.setBolt("StateCountPersistingBolt", new PostgresBolt("", ""))
+                .shuffleGrouping("StateCountingBolt");
+
         Config config = new Config();
         config.setDebug(true);
 

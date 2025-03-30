@@ -60,7 +60,12 @@ public class PostgresBolt extends BaseRichBolt {
                              state_code VARCHAR(10),
                              collected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                              sentiment_score INT DEFAULT 0
-                         );""";
+                         );
+                        CREATE TABLE IF NOT EXISTS TweetCountByState (
+                            id SERIAL PRIMARY KEY,
+                            state VARCHAR(255) UNIQUE NOT NULL,
+                            tweet_cnt INT DEFAULT 0
+                        );""";
                 statement.executeUpdate(sql);
                 System.out.println("Table created/verified successfully");
 
@@ -68,11 +73,13 @@ public class PostgresBolt extends BaseRichBolt {
                     // Delete old data if exists since this is in development
                     sql = "DELETE FROM Tweet WHERE 1=1";
                     statement.executeUpdate(sql);
+                    sql = "DELETE FROM TweetCountByState WHERE 1=1";
+                    statement.executeUpdate(sql);
                 }
                 System.out.println("Table cleared successfully");
             }
         } catch (SQLException e) {
-            if (e.getSQLState().equals("23505") && e.getMessage().contains("tweet_id_seq")) {
+            if (e.getSQLState().equals("23505")) {
                 LOGGER.warn("Duplicate sequence detected, ignoring: {}", e.getMessage());
             }
             else throw new RuntimeException("Table creation failed" + e.getMessage());
@@ -111,8 +118,7 @@ public class PostgresBolt extends BaseRichBolt {
                 statement.executeUpdate();
                 collector.emit(new Values(tuple.getValues().toArray(new Object[0])));
                 collector.ack(tuple);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 LOGGER.error("Error persisting from JsonParsingBolt: {}", e.getMessage());
                 collector.fail(tuple);
             }
@@ -133,6 +139,23 @@ public class PostgresBolt extends BaseRichBolt {
             }
             catch (Exception e) {
                 LOGGER.error("Error persisting from SentimentBolt: {}", e.getMessage());
+                collector.fail(tuple);
+            }
+        }
+        else if (source.equals("StateCountingBolt")) {
+            String sql = """
+                    INSERT INTO TweetCountByState (state, tweet_cnt)
+                    VALUES (?, ?)
+                    ON CONFLICT (state) DO UPDATE SET tweet_cnt = EXCLUDED.tweet_cnt;""";
+
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                var val = tuple.getValueByField("state");
+                statement.setString(1, (val != null) ? val.toString() : "unknown");
+                statement.setInt(2, tuple.getIntegerByField("tweet_cnt"));
+                statement.executeUpdate();
+            }
+            catch (Exception e) {
+                LOGGER.error("Error persisting from StateCountingBolt: {}", e.getMessage());
                 collector.fail(tuple);
             }
         }
