@@ -25,7 +25,7 @@ public class TwitterFileListeningSpout extends BaseRichSpout {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("record"));
+        declarer.declare(new Fields("value"));
     }
 
     @Override
@@ -39,9 +39,9 @@ public class TwitterFileListeningSpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        for (String record : tweets) {
+        for (String value : tweets) {
             Utils.sleep(50);
-            collector.emit(new Values(record));
+            collector.emit(new Values(value));
         }
     }
 }
