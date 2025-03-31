@@ -38,7 +38,7 @@ public class JsonParsingBolt extends BaseRichBolt {
     public void execute(Tuple tuple) {
         try {
             // Get the json record
-            String record = tuple.getStringByField("record");
+            String record = tuple.getStringByField("value");
 
             // Convert the record to an instance of Map
             ObjectMapper mapper = new ObjectMapper();
