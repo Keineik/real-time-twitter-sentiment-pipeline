@@ -5,6 +5,7 @@ import hcmus.group02.Bolt.PostgresBolt;
 import hcmus.group02.Bolt.SentimentBolt;
 import hcmus.group02.Bolt.StateCountingBolt;
 import hcmus.group02.Spout.TwitterFileListeningSpout;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.storm.Config;
 import org.apache.storm.LocalCluster;
 import org.apache.storm.StormSubmitter;
@@ -28,14 +29,16 @@ public class TwitterStormTopology
         TopologyBuilder builder = new TopologyBuilder();
 
         // Fake stream from file
-        builder.setSpout("TwitterFileListeningSpout", new TwitterFileListeningSpout("data/hashtag_joebiden.json"));
-//        // Take input from Kafka
-//        builder.setSpout("KafkaSpout", new KafkaSpout<>(KafkaSpoutConfig.builder(
-//                "localhost:9092", "twitter-kafka-stream").build()));
+        // builder.setSpout("TwitterFileListeningSpout", new TwitterFileListeningSpout("data/hashtag_joebiden.json"));
+        // Take input from Kafka
+        builder.setSpout("KafkaSpout", new KafkaSpout<>(KafkaSpoutConfig
+                .builder("localhost:9092", "twitter-kafka-stream")
+                .setProp(ConsumerConfig.GROUP_ID_CONFIG, "storm-twitter-pipeline")
+                .build()));
 
         // Parse JSON
         builder.setBolt("JsonParsingBolt", new JsonParsingBolt(fields))
-                .shuffleGrouping("TwitterFileListeningSpout");
+                .shuffleGrouping("KafkaSpout");
 
         // Count tweet group by state
         builder.setBolt("StateCountingBolt", new StateCountingBolt())
@@ -65,7 +68,7 @@ public class TwitterStormTopology
         config.setDebug(true);
         try (LocalCluster cluster = new LocalCluster()) { // Try-with-resources
             cluster.submitTopology("LocalStormTopology", config, topology);
-            Utils.sleep(ONE_MINUTES/6);
+            Utils.sleep(ONE_MINUTES);
             cluster.killTopology("LocalStormTopology");
             cluster.shutdown();
         }

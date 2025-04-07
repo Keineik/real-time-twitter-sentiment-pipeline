@@ -12,5 +12,7 @@ setup-stream:
 	- docker exec -u 0 kafka sh -c "$(kafka)/kafka-topics.sh --create --topic twitter-kafka-stream --bootstrap-server localhost:9092;";
 	docker exec -u 0 kafka sh -c "mkdir -p /opt/tmp/data"
 	docker cp ./src/main/resources/data/small_subset.json kafka:/opt/tmp/data;
-start-stream:
+produce-stream:
 	docker exec -u 0 kafka sh -c "$(kafka)/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic twitter-kafka-stream < /opt/tmp/data/small_subset.json"
+consume-stream:
+	docker exec -u 0 kafka sh -c "$(kafka)/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic twitter-kafka-stream --from-beginning;"
