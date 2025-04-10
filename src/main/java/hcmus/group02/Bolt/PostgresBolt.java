@@ -61,11 +61,21 @@ public class PostgresBolt extends BaseRichBolt {
                              collected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                              sentiment_score INT DEFAULT 0
                          );
+                        
                         CREATE TABLE IF NOT EXISTS TweetCountByState (
                             id SERIAL PRIMARY KEY,
                             state VARCHAR(255) UNIQUE NOT NULL,
                             tweet_cnt INT DEFAULT 0
-                        );""";
+                        );
+                        
+                        CREATE TABLE IF NOT EXISTS TrendingTweets (
+                            id SERIAL PRIMARY KEY,
+                            hashtag VARCHAR(127),
+                            tweet_cnt INT DEFAULT 0,
+                            rank INT DEFAULT 0,
+                            window_start TIMESTAMP WITH TIME ZONE NOT NULL,
+                            window_end TIMESTAMP WITH TIME ZONE NOT NULL
+                        )""";
                 statement.executeUpdate(sql);
                 System.out.println("Table created/verified successfully");
 
@@ -74,6 +84,8 @@ public class PostgresBolt extends BaseRichBolt {
                     sql = "DELETE FROM Tweet WHERE 1=1";
                     statement.executeUpdate(sql);
                     sql = "DELETE FROM TweetCountByState WHERE 1=1";
+                    statement.executeUpdate(sql);
+                    sql = "DELETE FROM TrendingTweets WHERE 1=1";
                     statement.executeUpdate(sql);
                 }
                 System.out.println("Table cleared successfully");
@@ -159,6 +171,32 @@ public class PostgresBolt extends BaseRichBolt {
                 collector.fail(tuple);
             }
         }
+        else if (source.equals("TrendWindowingBolt")) {
+            String sql = """
+            INSERT INTO TrendingTweets (hashtag, tweet_cnt, rank, window_start, window_end)
+            VALUES (?, ?, ?, ?, ?);""";
+
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, tuple.getStringByField("hashtag"));
+                statement.setInt(2, tuple.getIntegerByField("tweet_cnt"));
+                statement.setInt(3, tuple.getIntegerByField("rank"));
+
+                // Convert timestamps
+                Timestamp windowStart = (Timestamp) tuple.getValueByField("window_start");
+                Timestamp windowEnd = (Timestamp) tuple.getValueByField("window_end");
+
+                statement.setTimestamp(4, windowStart);
+                statement.setTimestamp(5, windowEnd);
+
+                statement.executeUpdate();
+                collector.ack(tuple);
+            }
+            catch (Exception e) {
+                LOGGER.error("Error persisting from TrendWindowingBolt: {}", e.getMessage());
+                collector.fail(tuple);
+            }
+        }
+
     }
 
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
