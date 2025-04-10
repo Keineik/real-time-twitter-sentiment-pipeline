@@ -75,7 +75,24 @@ public class PostgresBolt extends BaseRichBolt {
                             rank INT DEFAULT 0,
                             window_start TIMESTAMP WITH TIME ZONE NOT NULL,
                             window_end TIMESTAMP WITH TIME ZONE NOT NULL
-                        )""";
+                        );
+                        
+                        CREATE OR REPLACE VIEW CurrentTrending AS
+                            WITH latest_window AS (
+                                SELECT MAX(window_end) AS latest_end
+                                FROM TrendingTweets
+                            )
+                            SELECT
+                                tt.id,
+                                tt.hashtag,
+                                tt.tweet_cnt AS count,
+                                tt.rank,
+                                tt.window_start,
+                                tt.window_end
+                            FROM TrendingTweets tt
+                            JOIN latest_window lw 
+                                ON tt.window_end = lw.latest_end
+                            ORDER BY tt.rank;""";
                 statement.executeUpdate(sql);
                 System.out.println("Table created/verified successfully");
 
