@@ -45,12 +45,12 @@ public class TwitterStormTopology
                 .fieldsGrouping("JsonParsingBolt", new Fields("state"));
 
         // Persist data to database
-        builder.setBolt("PostgresBolt", new PostgresBolt(fields, "new table"))
+        builder.setBolt("TweetPersistingBolt", new PostgresBolt(fields, "new table"))
                 .shuffleGrouping("JsonParsingBolt");
 
         // Get sentiment of tweets
         builder.setBolt("SentimentBolt", new SentimentBolt("AFINN-en-165.txt"))
-                .shuffleGrouping("PostgresBolt");
+                .shuffleGrouping("TweetPersistingBolt");
 
         // Update sentiment to database
         builder.setBolt("SentimentUpdatingBolt", new PostgresBolt("", ""))
@@ -80,7 +80,7 @@ public class TwitterStormTopology
         config.setDebug(true);
         try (LocalCluster cluster = new LocalCluster()) { // Try-with-resources
             cluster.submitTopology("LocalStormTopology", config, topology);
-            Utils.sleep(ONE_MINUTES);
+            Utils.sleep(ONE_MINUTES * 10);
             cluster.killTopology("LocalStormTopology");
             cluster.shutdown();
         }
